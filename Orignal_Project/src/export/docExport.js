@@ -386,3 +386,42 @@ export async function exportDocToDocx(pageEl, pageConfig, title) {
   const blob = await Packer.toBlob(doc);
   await triggerDownload(sanitizeFilename(title, 'docx'), blob);
 }
+
+export async function renderPageToCanvas(pageEl) {
+  const html2canvas = await loadExportLib('html2canvas');
+  const host = document.createElement('div');
+  host.style.position = 'fixed';
+  host.style.left = '-99999px';
+  host.style.top = '0';
+  host.style.background = '#ffffff';
+  host.style.zIndex = '-9999';
+  const clone = pageEl.cloneNode(true);
+  clone.removeAttribute('contenteditable');
+  clone.style.backgroundImage = 'none';
+  clone.style.boxShadow = 'none';
+  clone.querySelectorAll('.pb').forEach((pb) => {
+    pb.style.borderTopColor = 'transparent';
+    const sp = pb.querySelector('span');
+    if (sp) sp.style.visibility = 'hidden';
+  });
+  host.appendChild(clone);
+  document.body.appendChild(host);
+  try {
+    const hPx = Math.max(clone.scrollHeight, clone.offsetHeight);
+    let scale = Math.min(2, window.devicePixelRatio || 2);
+    if (hPx * scale > 14000) scale = Math.max(0.5, 14000 / hPx);
+    const canvas = await html2canvas(clone, {
+      scale,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false
+    });
+    return {
+      canvas,
+      scale
+    };
+  } finally {
+    document.body.removeChild(host);
+  }
+}
+
