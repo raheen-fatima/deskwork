@@ -97,3 +97,60 @@ export async function exportSheetToXlsx(wb, title, onNotice) {
   }
 }
 
+export async function renderSheetToCanvas(wb) {
+  const html2canvas = await loadExportLib('html2canvas');
+  const sh = wb.sheets.find((s) => s.id === wb.activeSheetId) || wb.sheets[0];
+  const ev = getSheetEvaluator(sh.cells);
+  const { maxR, maxC } = getSheetUsedBounds(sh);
+  const host = document.createElement('div');
+  host.style.position = 'fixed';
+  host.style.left = '-99999px';
+  host.style.top = '0';
+  host.style.background = '#ffffff';
+  host.style.padding = '24px';
+  const tbl = document.createElement('table');
+  tbl.style.borderCollapse = 'collapse';
+  tbl.style.fontFamily = 'Arial, sans-serif';
+  tbl.style.fontSize = '12px';
+  tbl.style.color = '#111827';
+  tbl.style.background = '#ffffff';
+  for (let r = 0; r <= maxR; r++) {
+    const tr = document.createElement('tr');
+    for (let c = 0; c <= maxC; c++) {
+      const addr = formatCellAddr(r, c);
+      const cell = sh.cells[addr];
+      const td = document.createElement('td');
+      td.style.border = '1px solid #d0d5dd';
+      td.style.padding = '4px 8px';
+      td.style.minWidth = (sh.colWidths[c] || 96) + 'px';
+      td.style.maxWidth = (sh.colWidths[c] || 96) + 'px';
+      td.style.whiteSpace = cell && cell.wrap ? 'pre-wrap' : 'nowrap';
+      const val = cell && cell.raw !== '' ? ev.getValue(addr) : '';
+      td.textContent = cell && cell.raw !== '' ? formatCellDisplay(val, cell) : '';
+      if (cell && cell.bold) td.style.fontWeight = '700';
+      if (cell && cell.italic) td.style.fontStyle = 'italic';
+      if (cell && cell.underline) td.style.textDecoration = 'underline';
+      if (cell && cell.color) td.style.color = cell.color;
+      if (cell && cell.bg) td.style.backgroundColor = cell.bg;
+      td.style.textAlign =
+        (cell && cell.align) || (typeof val === 'number' && !isFormulaError(val) ? 'right' : 'left');
+      tr.appendChild(td);
+    }
+    tbl.appendChild(tr);
+  }
+  host.appendChild(tbl);
+  document.body.appendChild(host);
+  try {
+    const hPx = Math.max(host.scrollHeight, 100);
+    let scale = Math.min(2, window.devicePixelRatio || 2);
+    if (hPx * scale > 14000) scale = Math.max(0.5, 14000 / hPx);
+    return await html2canvas(host, {
+      scale,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+  } finally {
+    document.body.removeChild(host);
+  }
+}
+
