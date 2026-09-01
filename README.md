@@ -1,6 +1,6 @@
 # Deskwork
 
-[Image Preview Application](./src/public/previewImage.png)
+![Image Preview Application](./src/public/previewImage.png)
 
 Browser-based document + spreadsheet editor with Urdu typing, an on-screen keyboard and export to
 DOCX / PDF / JPG / HTML / XLSX / CSV. Ported from the single `deskwork.html` file to a Vite + React project.
