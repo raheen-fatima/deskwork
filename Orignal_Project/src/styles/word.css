@@ -1,0 +1,122 @@
+/* Word Editor Canvas & Page */
+.doc-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--canvas-bg);
+  padding: 28px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.page-stage {
+  position: relative;
+  flex-shrink: 0;
+}
+.page {
+  position: relative;
+  isolation: isolate;
+  background-color: #ffffff;
+  color: #111827;
+  padding: 96px;
+  box-shadow: var(--page-shadow);
+  outline: none;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--page-h) - 1px),
+    #cbd2da calc(var(--page-h) - 1px),
+    #cbd2da var(--page-h)
+  );
+}
+.page p, .page h1, .page h2, .page h3, .page li, .page div, .sheet-cell, .sheet-cell-text {
+  unicode-bidi: plaintext;
+}
+.page p { margin: 0 0 8px 0; }
+.page h1 { font-size: 26px; font-weight: 700; margin: 14px 0 8px; }
+.page h2 { font-size: 20px; font-weight: 700; margin: 12px 0 6px; }
+.page h3 { font-size: 16px; font-weight: 600; margin: 10px 0 6px; }
+.page ul, .page ol { margin: 4px 0 10px; padding-inline-start: 28px; }
+.page a { color: #0f6e73; text-decoration: underline; }
+.page table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  table-layout: fixed;
+}
+.page td, .page th {
+  border: 1px solid #9ca3af;
+  padding: 6px 8px;
+  min-width: 32px;
+  vertical-align: top;
+}
+.page img { max-width: 100%; cursor: pointer; }
+.page .pb {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 0 0;
+  border-top: 1px dashed #94a3b8;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  user-select: none;
+  pointer-events: auto;
+  clear: both;
+}
+.page .pb span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 1px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+}
+
+/* Image Selection Overlay */
+.img-overlay {
+  position: absolute;
+  border: 1.5px solid var(--doc-accent);
+  pointer-events: none;
+  z-index: 30;
+}
+.img-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: #ffffff;
+  border: 1.5px solid var(--doc-accent);
+  border-radius: 1px;
+  pointer-events: auto;
+}
+.img-handle.nw { left: -5px; top: -5px; cursor: nwse-resize; }
+.img-handle.n  { left: calc(50% - 4.5px); top: -5px; cursor: ns-resize; }
+.img-handle.ne { right: -5px; top: -5px; cursor: nesw-resize; }
+.img-handle.e  { right: -5px; top: calc(50% - 4.5px); cursor: ew-resize; }
+.img-handle.se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.img-handle.s  { left: calc(50% - 4.5px); bottom: -5px; cursor: ns-resize; }
+.img-handle.sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
+.img-handle.w  { left: -5px; top: calc(50% - 4.5px); cursor: ew-resize; }
+.img-toolbar {
+  position: absolute;
+  left: 0;
+  top: -34px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+.img-toolbar .icon-btn { height: 24px; font-size: 11px; padding: 0 6px; }
+
