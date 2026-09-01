@@ -120,3 +120,174 @@ export function tokenizeFormula(expr) {
   }
   return tokens;
 }
+
+export function parseFormulaAst(tokens) {
+  let pos = 0;
+  const peek = () => tokens[pos] || null;
+  const consume = () => tokens[pos++];
+  function parseComparison() {
+    let left = parseConcat();
+    while (peek() && peek().type === 'OP' && ['=', '<>', '<', '>', '<=', '>='].includes(peek().value)) {
+      const op = consume().value;
+      const right = parseConcat();
+      left = {
+        kind: 'bin',
+        op,
+        left,
+        right
+      };
+    }
+    return left;
+  }
+  function parseConcat() {
+    let left = parseAddSub();
+    while (peek() && peek().type === 'OP' && peek().value === '&') {
+      consume();
+      left = {
+        kind: 'bin',
+        op: '&',
+        left,
+        right: parseAddSub()
+      };
+    }
+    return left;
+  }
+  function parseAddSub() {
+    let left = parseMulDiv();
+    while (peek() && peek().type === 'OP' && (peek().value === '+' || peek().value === '-')) {
+      const op = consume().value;
+      left = {
+        kind: 'bin',
+        op,
+        left,
+        right: parseMulDiv()
+      };
+    }
+    return left;
+  }
+  function parseMulDiv() {
+    let left = parsePower();
+    while (peek() && peek().type === 'OP' && (peek().value === '*' || peek().value === '/')) {
+      const op = consume().value;
+      left = {
+        kind: 'bin',
+        op,
+        left,
+        right: parsePower()
+      };
+    }
+    return left;
+  }
+  function parsePower() {
+    let left = parseUnary();
+    if (peek() && peek().type === 'OP' && peek().value === '^') {
+      consume();
+      const right = parsePower();
+      return {
+        kind: 'bin',
+        op: '^',
+        left,
+        right
+      };
+    }
+    return left;
+  }
+  function parseUnary() {
+    if (peek() && peek().type === 'OP' && (peek().value === '+' || peek().value === '-')) {
+      const op = consume().value;
+      return {
+        kind: 'unary',
+        op,
+        arg: parseUnary()
+      };
+    }
+    return parsePostfix();
+  }
+  function parsePostfix() {
+    let node = parsePrimary();
+    while (peek() && peek().type === 'OP' && peek().value === '%') {
+      consume();
+      node = {
+        kind: 'percent',
+        arg: node
+      };
+    }
+    return node;
+  }
+  function parsePrimary() {
+    const t = peek();
+    if (!t) throw new Error('#ERR!');
+    if (t.type === 'NUM') {
+      consume();
+      return {
+        kind: 'lit',
+        value: t.value
+      };
+    }
+    if (t.type === 'STR') {
+      consume();
+      return {
+        kind: 'lit',
+        value: t.value
+      };
+    }
+    if (t.type === 'BOOL') {
+      consume();
+      return {
+        kind: 'lit',
+        value: t.value
+      };
+    }
+    if (t.type === '(') {
+      consume();
+      const expr = parseComparison();
+      if (!peek() || peek().type !== ')') throw new Error('#ERR!');
+      consume();
+      return expr;
+    }
+    if (t.type === 'REF') {
+      consume();
+      if (peek() && peek().type === ':') {
+        consume();
+        const endTok = peek();
+        if (!endTok || endTok.type !== 'REF') throw new Error('#ERR!');
+        consume();
+        return {
+          kind: 'range',
+          from: t.cell,
+          to: endTok.cell
+        };
+      }
+      return {
+        kind: 'ref',
+        cell: t.cell
+      };
+    }
+    if (t.type === 'IDENT') {
+      const name = consume().value;
+      if (peek() && peek().type === '(') {
+        consume();
+        const args = [];
+        if (peek() && peek().type !== ')') {
+          args.push(parseComparison());
+          while (peek() && peek().type === ',') {
+            consume();
+            args.push(parseComparison());
+          }
+        }
+        if (!peek() || peek().type !== ')') throw new Error('#ERR!');
+        consume();
+        return {
+          kind: 'call',
+          name,
+          args
+        };
+      }
+      throw new Error('#NAME?');
+    }
+    throw new Error('#ERR!');
+  }
+  const ast = parseComparison();
+  if (pos < tokens.length) throw new Error('#ERR!');
+  return ast;
+}
