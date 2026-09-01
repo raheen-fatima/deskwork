@@ -192,3 +192,25 @@ export async function exportSheetToJpg(wb, title) {
   await triggerDownload(sanitizeFilename(title, 'jpg'), blob);
 }
 
+export async function exportSheetToCsv(wb, title) {
+  const sh = wb.sheets.find((s) => s.id === wb.activeSheetId) || wb.sheets[0];
+  const ev = getSheetEvaluator(sh.cells);
+  const { maxR, maxC } = getSheetUsedBounds(sh);
+  const lines = [];
+  for (let r = 0; r <= maxR; r++) {
+    const cols = [];
+    for (let c = 0; c <= maxC; c++) {
+      const addr = formatCellAddr(r, c);
+      const cell = sh.cells[addr];
+      const disp = cell && cell.raw !== '' ? formatCellDisplay(ev.getValue(addr), cell) : '';
+      const esc = /[",\n\r]/.test(disp) ? '"' + disp.replace(/"/g, '""') + '"' : disp;
+      cols.push(esc);
+    }
+    lines.push(cols.join(','));
+  }
+  await triggerDownload(
+    sanitizeFilename(title, 'csv'),
+    '\uFEFF' + lines.join('\r\n'),
+    'text/csv;charset=utf-8'
+  );
+}
