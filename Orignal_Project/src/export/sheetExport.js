@@ -154,3 +154,41 @@ export async function renderSheetToCanvas(wb) {
   }
 }
 
+export async function exportSheetToPdf(wb, title) {
+  const jspdfMod = await loadExportLib('jspdf');
+  const { jsPDF } = jspdfMod;
+  const canvas = await renderSheetToCanvas(wb);
+  const pageW = 1056;
+  const pageH = 816;
+  const ratio = Math.min(pageW / canvas.width, 1);
+  const sliceSrcH = Math.round(pageH / ratio);
+  const pages = Math.max(1, Math.ceil(canvas.height / sliceSrcH));
+  const pdf = new jsPDF({
+    orientation: 'landscape',
+    unit: 'px',
+    format: [pageW, pageH],
+    hotfixes: ['px_scaling']
+  });
+  for (let p = 0; p < pages; p++) {
+    const sy = p * sliceSrcH;
+    const sh = Math.min(sliceSrcH, canvas.height - sy);
+    if (sh <= 0) break;
+    const tmp = document.createElement('canvas');
+    tmp.width = canvas.width;
+    tmp.height = sh;
+    const ctx = tmp.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, tmp.width, tmp.height);
+    ctx.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
+    if (p > 0) pdf.addPage([pageW, pageH], 'landscape');
+    pdf.addImage(tmp.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, canvas.width * ratio, sh * ratio);
+  }
+  await triggerDownload(sanitizeFilename(title, 'pdf'), pdf.output('blob'));
+}
+
+export async function exportSheetToJpg(wb, title) {
+  const canvas = await renderSheetToCanvas(wb);
+  const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+  await triggerDownload(sanitizeFilename(title, 'jpg'), blob);
+}
+
