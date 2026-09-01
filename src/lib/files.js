@@ -66,3 +66,24 @@ export function readFilePayload(fileMeta) {
     return fileMeta.type === 'doc' ? defaultDocContent() : defaultSheetContent();
   }
 }
+
+export function formatModTime(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return (
+      d.getFullYear() +
+      '-' +
+      pad(d.getMonth() + 1) +
+      '-' +
+      pad(d.getDate()) +
+      ' ' +
+      pad(d.getHours()) +
+      ':' +
+      pad(d.getMinutes())
+    );
+  } catch (e) {
+    return '';
+  }
+}
