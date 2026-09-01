@@ -514,3 +514,845 @@ export function SpreadsheetEditor({
         : null;
     }, false);
   };
+  const addChart = (type) => {
+    const { r1, c1, r2, c2 } = selBounds;
+    const rng = formatCellAddr(r1, c1) + ':' + formatCellAddr(r2, c2);
+    applyWorkbookChange((draft) => {
+      draft.charts.push({
+        id: 'ch_' + uid(),
+        sheetId: activeSheet.id,
+        type,
+        range: rng,
+        title: type.charAt(0).toUpperCase() + type.slice(1) + ' Chart (' + rng + ')'
+      });
+    });
+  };
+  const visibleRowFilter = useMemo(() => {
+    if (!activeSheet.filter || !activeSheet.filter.text) return null;
+    const fCol = activeSheet.filter.col;
+    const needle = activeSheet.filter.text.toLowerCase();
+    return {
+      fCol,
+      needle
+    };
+  }, [activeSheet.filter]);
+
+  // Selection status bar metrics (Count, Sum, Average)
+  const selMetrics = useMemo(() => {
+    let countNonEmpty = 0;
+    let numCount = 0;
+    let sum = 0;
+    for (let r = selBounds.r1; r <= selBounds.r2; r++) {
+      for (let c = selBounds.c1; c <= selBounds.c2; c++) {
+        const addr = formatCellAddr(r, c);
+        const cell = activeSheet.cells[addr];
+        if (cell && cell.raw !== undefined && cell.raw !== '') {
+          countNonEmpty++;
+          const v = evaluator.getValue(addr);
+          if (typeof v === 'number' && isFinite(v)) {
+            numCount++;
+            sum += v;
+          }
+        }
+      }
+    }
+    return {
+      count: countNonEmpty,
+      sum: Math.round(sum * 1e9) / 1e9,
+      avg: numCount > 0 ? Math.round((sum / numCount) * 1e6) / 1e6 : null
+    };
+  }, [selBounds, activeSheet.cells, evaluator]);
+  const sheetCharts = wb.charts.filter((ch) => ch.sheetId === activeSheet.id);
+  const preventFocus = (e) => e.preventDefault();
+  return (
+    <div className="sheet-workspace">
+      {' '}
+      // Ribbon
+      <div className="ribbon" role="toolbar" aria-label="Spreadsheet tools">
+        <div className="ribbon-row">
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Undo"
+            disabled={undoStack.length === 0}
+            onMouseDown={preventFocus}
+            onClick={handleUndo}
+          >
+            <SvgIcon d={['M3 7v6h6', 'M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13']} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Redo"
+            disabled={redoStack.length === 0}
+            onMouseDown={preventFocus}
+            onClick={handleRedo}
+          >
+            <SvgIcon d={['M21 7v6h-6', 'M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7']} />
+          </button>
+          <span className="r-sep" />
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Bold"
+            aria-pressed={!!activeCell.bold}
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.bold = !activeCell.bold;
+              })
+            }
+          >
+            <strong>B</strong>
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Italic"
+            aria-pressed={!!activeCell.italic}
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.italic = !activeCell.italic;
+              })
+            }
+          >
+            <em>I</em>
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Underline"
+            aria-pressed={!!activeCell.underline}
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.underline = !activeCell.underline;
+              })
+            }
+          >
+            <span
+              style={{
+                textDecoration: 'underline'
+              }}
+            >
+              U
+            </span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Wrap text"
+            aria-pressed={!!activeCell.wrap}
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.wrap = !activeCell.wrap;
+              })
+            }
+          >
+            Wrap
+          </button>
+          <span className="r-sep" />
+          <label className="color-btn-wrap" title="Text colour">
+            <span
+              style={{
+                fontSize: '11px',
+                marginRight: '2px'
+              }}
+            >
+              A
+            </span>
+            <input
+              type="color"
+              className="color-input-hidden"
+              aria-label="Cell text colour"
+              value={activeCell.color || textColor}
+              onChange={(e) => {
+                setTextColor(e.target.value);
+                updateSelectedFormat((c) => {
+                  c.color = e.target.value;
+                });
+              }}
+            />
+          </label>
+          <label className="color-btn-wrap" title="Fill colour">
+            <span
+              style={{
+                fontSize: '11px',
+                marginRight: '2px'
+              }}
+            >
+              Fill
+            </span>
+            <input
+              type="color"
+              className="color-input-hidden"
+              aria-label="Cell fill colour"
+              value={activeCell.bg || fillColor}
+              onChange={(e) => {
+                setFillColor(e.target.value);
+                updateSelectedFormat((c) => {
+                  c.bg = e.target.value;
+                });
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Clear fill"
+            title="Clear fill"
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                delete c.bg;
+              })
+            }
+          >
+            ∅
+          </button>
+          <span className="r-sep" />
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Align left"
+            aria-pressed={activeCell.align === 'left'}
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.align = 'left';
+              })
+            }
+          >
+            L
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Align center"
+            aria-pressed={activeCell.align === 'center'}
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.align = 'center';
+              })
+            }
+          >
+            C
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Align right"
+            aria-pressed={activeCell.align === 'right'}
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.align = 'right';
+              })
+            }
+          >
+            R
+          </button>
+          <span className="r-sep" />
+          <select
+            className="r-select"
+            aria-label="Number format"
+            value={activeCell.numFmt || 'general'}
+            onChange={(e) =>
+              updateSelectedFormat((c) => {
+                c.numFmt = e.target.value;
+              })
+            }
+          >
+            <option value="general">General</option>
+            <option value="number">Number</option>
+            <option value="currency">Currency</option>
+            <option value="percent">Percent</option>
+            <option value="date">Date</option>
+          </select>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Increase decimals"
+            title="Increase decimals"
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.decimals = Math.min(10, (typeof c.decimals === 'number' ? c.decimals : 2) + 1);
+              })
+            }
+          >
+            .0+
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Decrease decimals"
+            title="Decrease decimals"
+            onMouseDown={preventFocus}
+            onClick={() =>
+              updateSelectedFormat((c) => {
+                c.decimals = Math.max(0, (typeof c.decimals === 'number' ? c.decimals : 2) - 1);
+              })
+            }
+          >
+            .0−
+          </button>
+        </div>
+        <div className="ribbon-row">
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Narrower column"
+            onMouseDown={preventFocus}
+            onClick={() => adjustColWidth(-16)}
+          >
+            Col −
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Wider column"
+            onMouseDown={preventFocus}
+            onClick={() => adjustColWidth(16)}
+          >
+            Col +
+          </button>
+          <span className="r-sep" />
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Sort A to Z"
+            onMouseDown={preventFocus}
+            onClick={() => sortActiveColumn(true)}
+          >
+            Sort A–Z
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Sort Z to A"
+            onMouseDown={preventFocus}
+            onClick={() => sortActiveColumn(false)}
+          >
+            Sort Z–A
+          </button>
+          <span className="r-sep" />
+          <input
+            type="text"
+            className="subbar-input"
+            style={{
+              width: '130px',
+              minWidth: '100px',
+              height: '24px'
+            }}
+            placeholder={'Filter col ' + colToLetter(sel.anchor.c) + '…'}
+            aria-label="Filter active column"
+            value={filterInput}
+            onChange={(e) => applyFilter(e.target.value)}
+          />
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Clear filter"
+            disabled={!activeSheet.filter}
+            onClick={() => applyFilter('')}
+          >
+            Clear
+          </button>
+          <span className="r-sep" />
+          <span
+            style={{
+              fontSize: '11.5px',
+              color: 'var(--text-muted)',
+              marginRight: '2px'
+            }}
+          >
+            Chart:
+          </span>
+          {['column', 'bar', 'line', 'pie', 'area'].map((t) => (
+            <button
+              key={t}
+              type="button"
+              className="icon-btn"
+              onMouseDown={preventFocus}
+              onClick={() => addChart(t)}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>{' '}
+      // Formula Bar
+      <div className="formula-bar">
+        <input
+          type="text"
+          className="name-box"
+          aria-label="Name box"
+          data-skip-urdu="true"
+          value={nameBoxVal}
+          onChange={(e) => setNameBoxVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              const parsed = parseRangeInput(nameBoxVal);
+              if (parsed) {
+                setSel({
+                  anchor: {
+                    r: parsed.r1,
+                    c: parsed.c1
+                  },
+                  focus: {
+                    r: parsed.r2,
+                    c: parsed.c2
+                  }
+                });
+                if (gridRef.current) gridRef.current.focus();
+              }
+            }
+          }}
+        />
+        <span className="fx-label">fx</span>
+        <input
+          type="text"
+          className="formula-input"
+          aria-label="Formula bar"
+          data-urdu-letters-only="true"
+          value={editing ? editing.value : formulaBarVal}
+          onFocus={() => {
+            if (!edr.current) startEdit(sel.anchor.r, sel.anchor.c, '', false, 'bar');
+          }}
+          onChange={(e) => {
+            const val = e.target.value;
+            setFormulaBarVal(val);
+            if (!edr.current) startEdit(sel.anchor.r, sel.anchor.c, val, true, 'bar');
+            else updateEditingVal(val);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitEdit(e.currentTarget.value);
+              moveAnchor(1, 0, false);
+              if (gridRef.current) gridRef.current.focus();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              cancelEdit();
+            }
+          }}
+          onBlur={() => {
+            if (edr.current) commitEdit();
+          }}
+        />
+      </div>{' '}
+      // Spreadsheet Grid
+      <div
+        ref={gridRef}
+        className="sheet-grid-wrap"
+        tabIndex={0}
+        data-sheet-grid="true"
+        role="grid"
+        aria-label="Spreadsheet grid"
+        onKeyDown={onGridKeyDown}
+        onCopy={onGridCopy}
+        onCut={onGridCut}
+        onPaste={onGridPaste}
+        onMouseUp={() => {
+          draggingRef.current = false;
+        }}
+      >
+        <table className="sheet-table">
+          <colgroup>
+            <col
+              style={{
+                width: '44px'
+              }}
+            />
+            {Array.from(
+              {
+                length: SHEET_COLS
+              },
+              (_, c) => (
+                <col
+                  key={c}
+                  style={{
+                    width: (activeSheet.colWidths[c] || 96) + 'px'
+                  }}
+                />
+              )
+            )}
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="sheet-corner" />
+              {Array.from(
+                {
+                  length: SHEET_COLS
+                },
+                (_, c) => {
+                  const inC = c >= selBounds.c1 && c <= selBounds.c2;
+                  return (
+                    <th
+                      key={c}
+                      className={'sheet-col-hdr' + (inC ? ' sel-hdr' : '')}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSel({
+                          anchor: {
+                            r: 0,
+                            c
+                          },
+                          focus: {
+                            r: SHEET_ROWS - 1,
+                            c
+                          }
+                        });
+                        if (gridRef.current) gridRef.current.focus();
+                      }}
+                    >
+                      {colToLetter(c)}
+                    </th>
+                  );
+                }
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from(
+              {
+                length: SHEET_ROWS
+              },
+              (_, r) => {
+                if (visibleRowFilter && r > 0) {
+                  const fv = evaluator.getValue(formatCellAddr(r, visibleRowFilter.fCol));
+                  const fCell = activeSheet.cells[formatCellAddr(r, visibleRowFilter.fCol)];
+                  const disp = formatCellDisplay(fv, fCell).toLowerCase();
+                  if (!disp.includes(visibleRowFilter.needle)) return null;
+                }
+                const inR = r >= selBounds.r1 && r <= selBounds.r2;
+                return (
+                  <tr key={r}>
+                    <th
+                      className={'sheet-row-hdr' + (inR ? ' sel-hdr' : '')}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSel({
+                          anchor: {
+                            r,
+                            c: 0
+                          },
+                          focus: {
+                            r,
+                            c: SHEET_COLS - 1
+                          }
+                        });
+                        if (gridRef.current) gridRef.current.focus();
+                      }}
+                    >
+                      {r + 1}
+                    </th>
+                    {Array.from(
+                      {
+                        length: SHEET_COLS
+                      },
+                      (_, c) => {
+                        const addr = formatCellAddr(r, c);
+                        const cell = activeSheet.cells[addr];
+                        const isEditingHere =
+                          editing && editing.r === r && editing.c === c && editing.sheetId === activeSheet.id;
+                        const isAnchor = sel.anchor.r === r && sel.anchor.c === c;
+                        const inSel = inR && c >= selBounds.c1 && c <= selBounds.c2;
+                        const rawVal = cell ? cell.raw : '';
+                        const evalVal = rawVal !== '' ? evaluator.getValue(addr) : '';
+                        const disp = rawVal !== '' ? formatCellDisplay(evalVal, cell) : '';
+                        const defaultAlign =
+                          typeof evalVal === 'number' && !isFormulaError(evalVal) ? 'right' : 'left';
+                        const style = {
+                          fontWeight: cell && cell.bold ? 700 : undefined,
+                          fontStyle: cell && cell.italic ? 'italic' : undefined,
+                          textDecoration: cell && cell.underline ? 'underline' : undefined,
+                          color: isFormulaError(evalVal)
+                            ? 'var(--danger)'
+                            : cell && cell.color
+                              ? cell.color
+                              : undefined,
+                          backgroundColor: cell && cell.bg ? cell.bg : undefined,
+                          textAlign: (cell && cell.align) || defaultAlign
+                        };
+                        return (
+                          <td
+                            key={c}
+                            className={
+                              'sheet-cell' +
+                              (cell && cell.wrap ? ' wrap' : '') +
+                              (inSel ? ' in-sel' : '') +
+                              (isAnchor ? ' active-cell' : '')
+                            }
+                            style={style}
+                            onMouseDown={(e) => {
+                              if (isEditingHere) return;
+                              if (edr.current) commitEdit();
+                              if (gridRef.current) gridRef.current.focus();
+                              if (e.shiftKey) {
+                                setSel((prev) => ({
+                                  anchor: prev.anchor,
+                                  focus: {
+                                    r,
+                                    c
+                                  }
+                                }));
+                              } else {
+                                draggingRef.current = true;
+                                setSel({
+                                  anchor: {
+                                    r,
+                                    c
+                                  },
+                                  focus: {
+                                    r,
+                                    c
+                                  }
+                                });
+                              }
+                            }}
+                            onMouseEnter={() => {
+                              if (draggingRef.current) {
+                                setSel((prev) => ({
+                                  anchor: prev.anchor,
+                                  focus: {
+                                    r,
+                                    c
+                                  }
+                                }));
+                              }
+                            }}
+                            onDoubleClick={() => startEdit(r, c, '', false)}
+                          >
+                            {isEditingHere && editing.source !== 'bar' ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                className="sheet-cell-editor"
+                                data-urdu-letters-only="true"
+                                value={editing.value}
+                                onChange={(e) => updateEditingVal(e.target.value)}
+                                onKeyDown={(e) => {
+                                  e.stopPropagation();
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    commitEdit(e.currentTarget.value);
+                                    moveAnchor(e.shiftKey ? -1 : 1, 0, false);
+                                    if (gridRef.current) gridRef.current.focus();
+                                  } else if (e.key === 'Tab') {
+                                    e.preventDefault();
+                                    commitEdit(e.currentTarget.value);
+                                    moveAnchor(0, e.shiftKey ? -1 : 1, false);
+                                    if (gridRef.current) gridRef.current.focus();
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    cancelEdit();
+                                  }
+                                }}
+                                onBlur={() => {
+                                  if (edr.current) commitEdit();
+                                }}
+                              />
+                            ) : (
+                              disp
+                            )}
+                          </td>
+                        );
+                      }
+                    )}
+                  </tr>
+                );
+              }
+            )}
+          </tbody>
+        </table>
+      </div>
+      {
+        // Charts Dock
+        sheetCharts.length > 0 ? (
+          <div className="charts-panel">
+            {sheetCharts.map((ch) => (
+              <div key={ch.id} className="chart-card">
+                <div className="chart-head">
+                  <input
+                    type="text"
+                    className="chart-title-input"
+                    aria-label="Chart title"
+                    value={ch.title}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      applyWorkbookChange((draft) => {
+                        const found = draft.charts.find((x) => x.id === ch.id);
+                        if (found) found.title = v;
+                      });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn danger"
+                    style={{
+                      height: '22px',
+                      padding: '0 7px',
+                      fontSize: '11px'
+                    }}
+                    onClick={() =>
+                      applyWorkbookChange((draft) => {
+                        draft.charts = draft.charts.filter((x) => x.id !== ch.id);
+                      })
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+                <ChartSvg chart={ch} sheet={activeSheet} />
+              </div>
+            ))}
+          </div>
+        ) : null
+      }{' '}
+      // Sheet Tabs
+      <div className="sheet-tabs-bar" role="tablist" aria-label="Worksheets">
+        {wb.sheets.map((sh) => {
+          const isActive = sh.id === activeSheet.id;
+          const isRenaming = renamingSheetId === sh.id;
+          return (
+            <div
+              key={sh.id}
+              className={'sheet-tab' + (isActive ? ' active' : '')}
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => {
+                if (!isActive) {
+                  setConfirmDelSheetId(null);
+                  applyWorkbookChange((draft) => {
+                    draft.activeSheetId = sh.id;
+                  }, false);
+                }
+              }}
+              onDoubleClick={() => {
+                setRenamingSheetId(sh.id);
+                setRenameVal(sh.name);
+              }}
+            >
+              {isRenaming ? (
+                <input
+                  type="text"
+                  autoFocus
+                  className="sheet-tab-rename"
+                  value={renameVal}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setRenameVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const nm = renameVal.trim() || sh.name;
+                      setRenamingSheetId(null);
+                      applyWorkbookChange((draft) => {
+                        const found = draft.sheets.find((x) => x.id === sh.id);
+                        if (found) found.name = nm;
+                      });
+                    } else if (e.key === 'Escape') {
+                      setRenamingSheetId(null);
+                    }
+                  }}
+                  onBlur={() => {
+                    const nm = renameVal.trim() || sh.name;
+                    setRenamingSheetId(null);
+                    applyWorkbookChange((draft) => {
+                      const found = draft.sheets.find((x) => x.id === sh.id);
+                      if (found) found.name = nm;
+                    });
+                  }}
+                />
+              ) : (
+                <span>{sh.name}</span>
+              )}
+              {wb.sheets.length > 1 ? (
+                confirmDelSheetId === sh.id ? (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    style={{
+                      height: '18px',
+                      fontSize: '10px',
+                      color: 'var(--danger)',
+                      padding: '0 4px'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelSheetId(null);
+                      applyWorkbookChange((draft) => {
+                        draft.sheets = draft.sheets.filter((x) => x.id !== sh.id);
+                        draft.charts = draft.charts.filter((c) => c.sheetId !== sh.id);
+                        if (draft.activeSheetId === sh.id) draft.activeSheetId = draft.sheets[0].id;
+                      });
+                    }}
+                  >
+                    Confirm?
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    style={{
+                      height: '18px',
+                      minWidth: '16px',
+                      padding: '0 2px',
+                      fontSize: '12px'
+                    }}
+                    aria-label={'Delete sheet ' + sh.name}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelSheetId(sh.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                )
+              ) : null}
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Add sheet"
+          onClick={() => {
+            const newId = 's_' + uid();
+            let n = wb.sheets.length + 1;
+            while (wb.sheets.some((s) => s.name === 'Sheet' + n)) n++;
+            applyWorkbookChange((draft) => {
+              draft.sheets.push({
+                id: newId,
+                name: 'Sheet' + n,
+                cells: {},
+                colWidths: {},
+                filter: null
+              });
+              draft.activeSheetId = newId;
+            });
+          }}
+        >
+          + Sheet
+        </button>
+      </div>{' '}
+      // Status Bar
+      <div className="status-bar">
+        <span>
+          {'Cell ' +
+            activeAddr +
+            (activeSheet.filter ? ' · Filtered col ' + colToLetter(activeSheet.filter.col) : '')}
+        </span>
+        <span>
+          {'Count: ' +
+            selMetrics.count +
+            (selMetrics.avg !== null ? ' · Sum: ' + selMetrics.sum + ' · Average: ' + selMetrics.avg : '')}
+        </span>
+      </div>
+    </div>
+  );
+}
