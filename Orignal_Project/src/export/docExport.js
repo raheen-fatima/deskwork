@@ -463,3 +463,21 @@ export async function exportDocToJpg(pageEl, title) {
   await triggerDownload(sanitizeFilename(title, 'jpg'), blob);
 }
 
+export async function exportDocToHtml(pageEl, dims, title) {
+  const clone = pageEl.cloneNode(true);
+  clone.removeAttribute('contenteditable');
+  clone.querySelectorAll('.pb').forEach((pb) => {
+    pb.style.height = '1px';
+    pb.style.pageBreakAfter = 'always';
+    pb.innerHTML = '';
+  });
+  const html =
+    '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8" />\n<title>' +
+    String(title || 'Document').replace(/[<>&"]/g, '') +
+    '</title>\n<style>body{margin:0;padding:32px;background:#f1f3f5;font-family:Arial,sans-serif;}.doc{width:' +
+    dims.w +
+    'px;margin:0 auto;background:#fff;padding:96px;box-sizing:border-box;color:#111827;line-height:1.5;}p,h1,h2,h3,li,div{unicode-bidi:plaintext;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #9ca3af;padding:6px 8px;}</style>\n</head>\n<body><div class="doc">' +
+    clone.innerHTML +
+    '</div></body></html>';
+  await triggerDownload(sanitizeFilename(title, 'html'), html, 'text/html;charset=utf-8');
+}
