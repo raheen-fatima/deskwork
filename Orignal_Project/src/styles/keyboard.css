@@ -1,0 +1,234 @@
+/* ==========================================================================
+   On-screen keyboard - three display modes (sidebar / bottom / floating)
+   ========================================================================== */
+
+:root {
+  /* Bottom + floating size: ~60% of the screen, never narrower than 560px, never wider than the screen. */
+  --kb-w: min(100vw, max(60vw, 560px));
+  /* Height follows the width so the keyboard keeps its proportions. */
+  --kb-h: max(calc(var(--kb-w) * 0.36), 240px);
+}
+
+.kb-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  z-index: 60;
+  /* Key glyph size scales with the panel (cqw = 1% of the nearest container's width). */
+  --kb-fs-k: 1.9;
+  --kb-fs: clamp(12px, calc(var(--kb-fs-k) * 1cqw), 21px);
+}
+
+/* ---- Header ------------------------------------------------------------ */
+.kb-header {
+  height: 34px;
+  padding: 0 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.kb-title {
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mode switcher */
+.kb-modes {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.kb-mode-btn {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.kb-mode-btn:last-child { border-right: none; }
+.kb-mode-btn:hover { background: var(--surface-hover); color: var(--text); }
+.kb-mode-btn.active { background: var(--doc-accent-soft); color: var(--doc-accent); }
+
+/* ---- Key area ---------------------------------------------------------- */
+.kb-stage {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 8px;
+}
+.kb-board {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.kb-row {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+.kb-key {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  user-select: none;
+}
+.kb-key:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+.kb-key:active { transform: translateY(1px); }
+.kb-key.wide { flex: 1.7 1 0; }
+.kb-key.space { flex: 4 1 0; }
+.kb-key.active {
+  background: var(--doc-accent-soft);
+  border-color: var(--doc-accent);
+  color: var(--doc-accent);
+}
+.kb-main {
+  font-size: var(--kb-fs);
+  font-weight: 500;
+  line-height: 1;
+}
+.kb-main.kb-label { font-size: calc(var(--kb-fs) * 0.75); }
+.kb-key.ur .kb-main {
+  font-family: "Noto Naskh Arabic", var(--font-sans);
+  font-size: calc(var(--kb-fs) * 1.12);
+}
+.kb-en {
+  position: absolute;
+  left: 3px;
+  bottom: 2px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+.kb-alt {
+  position: absolute;
+  right: 3px;
+  top: 2px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+/* ==========================================================================
+   Mode: SIDEBAR - flex child on the right of the app
+   ========================================================================== */
+.kb-panel--sidebar {
+  height: 100vh;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  --kb-fs-k: 4.3;
+}
+.kb-panel--sidebar .kb-header { height: 42px; }
+/* The stage is a size container so the keyboard can fit it exactly:
+   full width, height up to a 4:3 landscape shape, centred, no scrolling. */
+.kb-panel--sidebar .kb-stage {
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kb-panel--sidebar .kb-board {
+  height: min(100cqh, 75cqw);
+}
+
+.kb-resize-grip {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kb-resize-grip::after {
+  content: "";
+  width: 2px;
+  height: 36px;
+  background: var(--border-strong);
+  border-radius: 2px;
+}
+.kb-resize-grip:hover::after,
+.kb-resize-grip:focus-visible::after { background: var(--focus-ring); }
+
+/* ==========================================================================
+   Mode: BOTTOM and FLOATING - fixed, same size
+   ========================================================================== */
+.kb-panel--bottom,
+.kb-panel--floating {
+  position: fixed;
+  z-index: 1000; /* above every other layer in the app */
+  width: var(--kb-w);
+  height: var(--kb-h);
+  container-type: inline-size;
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--page-shadow);
+}
+
+/* Bottom: centred, flush with the bottom edge, equal space left and right */
+.kb-panel--bottom {
+  left: calc((100vw - var(--kb-w)) / 2);
+  bottom: 0;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.18);
+}
+/* Keep the app's own bottom edge (status bar etc.) from sitting under the keyboard */
+.app-root.kb-bottom-open .app-main { padding-bottom: var(--kb-h); }
+
+/* Floating: starts bottom-centre, then follows the drag position (inline left/top) */
+.kb-panel--floating { border-radius: 6px; }
+.kb-panel--floating.kb-panel--default-pos {
+  left: calc((100vw - var(--kb-w)) / 2);
+  bottom: 24px;
+}
+.kb-panel--floating .kb-header {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.kb-panel--floating .kb-header:active { cursor: grabbing; }
+
+/* ==========================================================================
+   Small screens
+   ========================================================================== */
+@media (max-width: 699px) {
+  .app-root { flex-direction: column; }
+  .kb-panel--sidebar {
+    width: 100% !important;
+    height: 46vh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .kb-resize-grip { display: none; }
+}
